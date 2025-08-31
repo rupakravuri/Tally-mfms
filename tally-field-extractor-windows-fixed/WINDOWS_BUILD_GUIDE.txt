@@ -1,0 +1,87 @@
+===================================================================
+🏗️ TALLY FIELD EXTRACTOR - WINDOWS BUILD GUIDE (FIXED VERSION)
+===================================================================
+
+🐛 BUG FIX INCLUDED:
+- Fixed "require is not defined in ES module scope" error
+- Renamed electron.js to electron.cjs for CommonJS compatibility
+- Updated package.json main entry point
+
+📦 WHAT'S IN THE ZIP FILE:
+- Complete source code for Tally Field Extractor
+- All necessary configuration files
+- Build scripts and documentation
+- NO node_modules (to keep file size small)
+
+🚀 QUICK BUILD INSTRUCTIONS FOR WINDOWS:
+
+1️⃣ EXTRACT THE ZIP
+   - Extract tally-field-extractor-windows-fixed.zip
+   - Open Command Prompt or PowerShell in the extracted folder
+
+2️⃣ INSTALL DEPENDENCIES
+   npm install
+   (This will download and install all required packages)
+
+3️⃣ BUILD THE APPLICATION
+   npm run build
+   (This creates the web assets)
+
+4️⃣ CREATE WINDOWS EXE
+   npm run dist
+   (This creates the Windows executable)
+
+5️⃣ FIND YOUR EXE
+   - Look in the "release" folder
+   - You'll find "Tally Field Extractor.exe"
+   - File size will be ~200-300MB (includes everything needed)
+
+📋 PREREQUISITES:
+- Windows 10/11
+- Node.js 16 or higher (download from nodejs.org)
+- PowerShell or Command Prompt
+
+🔧 TROUBLESHOOTING:
+
+If npm install fails:
+- Clear npm cache: npm cache clean --force
+- Delete package-lock.json and retry
+
+If build fails:
+- Run: npm run build
+- Then: npm run dist
+
+If you get permission errors:
+- Run PowerShell as Administrator
+- Or try: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+⚡ ALTERNATIVE - TEST WITHOUT BUILDING EXE:
+npm install
+npm run dev
+(Then open http://localhost:5173 in your browser)
+
+🎯 WHAT YOU'LL GET:
+✅ Standalone Windows .exe file
+✅ No installation required
+✅ Connect to any Tally server
+✅ Extract 56+ Sales Voucher fields
+✅ Extract 80+ Stock Item fields
+✅ Real-time connection monitoring
+
+📧 THE APPLICATION FEATURES:
+- Company selection from Tally server
+- Comprehensive field listing
+- Connection status monitoring
+- Clean, professional interface
+- Ready for production use
+
+===================================================================
+
+🐛 VERSION HISTORY:
+v1.1 - Fixed ES module compatibility issue
+v1.0 - Initial release
+
+Total build time: ~5-10 minutes depending on internet speed
+Final .exe size: ~200-300MB (completely standalone)
+
+===================================================================
