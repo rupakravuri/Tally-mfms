@@ -21,19 +21,20 @@ export interface SyncResult {
 }
 
 export interface MongoConfiguration {
-  host: string;
-  port: number;
-  username: string;
-  password: string;
+  connectionString: string;
   databaseName: string;
   collectionName: string;
-  authSource: string;
-  connectionOptions: {
-    useUnifiedTopology: boolean;
-    serverSelectionTimeoutMS: number;
-    connectTimeoutMS: number;
-    maxPoolSize: number;
-  };
+  username?: string;
+  password?: string;
+  host?: string;
+  port?: number;
+  authDatabase?: string;
+  ssl?: boolean;
+  replicaSet?: string;
+  connectionOptions?: Record<string, any>;
+  isActive: boolean;
+  lastConnected?: string;
+  lastError?: string;
 }
 
 // MongoDB Service that uses Electron IPC for database operations
@@ -147,6 +148,20 @@ export class MongoService {
   // Legacy method compatibility
   public async ensureConnection(): Promise<void> {
     await this.connect();
+  }
+
+  // Add connection status method
+  public getConnectionStatus(): { connected: boolean; error?: string } {
+    try {
+      if (!this.isElectron()) {
+        return { connected: false, error: 'Not in Electron environment' };
+      }
+      // For now, we'll assume connected if we can access the API
+      // In a full implementation, you might want to track this state
+      return { connected: true };
+    } catch (error) {
+      return { connected: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
   }
 
   public getCollection(collectionName?: string): any {

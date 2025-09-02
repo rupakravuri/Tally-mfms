@@ -42,9 +42,11 @@ export const SyncInterface: React.FC<SyncInterfaceProps> = ({
 
   const checkConnections = async () => {
     try {
-      const mongoStatus = mongoService.getConnectionStatus();
-      setIsConnected(mongoStatus.connected);
+      // Test MongoDB connection by attempting to connect
+      const connectResult = await mongoService.connect();
+      setIsConnected(connectResult.success);
     } catch (error) {
+      console.error('Error checking MongoDB connection:', error);
       setIsConnected(false);
     }
   };

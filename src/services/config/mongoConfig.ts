@@ -43,11 +43,16 @@ export class MongoConfigService {
       collectionName: 'inventories',
       isActive: false,
       connectionOptions: {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
+        // Remove deprecated options for MongoDB 6.x compatibility
         maxPoolSize: 10,
-        serverSelectionTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 30000, // Increased for external connections
         socketTimeoutMS: 45000,
+        connectTimeoutMS: 30000, // Added for better external connection handling
+        heartbeatFrequencyMS: 10000,
+        maxIdleTimeMS: 30000,
+        // Add support for both local and external MongoDB
+        retryWrites: true,
+        retryReads: true,
       }
     };
   }
@@ -112,13 +117,15 @@ export class MongoConfigService {
   }
 
   public buildConnectionString(config: MongoConfiguration): string {
-    if (config.connectionString && config.connectionString.startsWith('mongodb')) {
+    // If full connection string is provided, use it directly
+    if (config.connectionString && (config.connectionString.startsWith('mongodb://') || config.connectionString.startsWith('mongodb+srv://'))) {
       return config.connectionString;
     }
 
     const host = config.host || 'localhost';
     const port = config.port || 27017;
     
+    // Support both standard and SRV connection strings
     let connectionString = 'mongodb://';
     
     if (config.username && config.password) {
@@ -132,8 +139,8 @@ export class MongoConfigService {
     }
     
     const options: string[] = [];
-    if (config.authDatabase) {
-      options.push(`authSource=${config.authDatabase}`);
+    if (config.authDatabase || config.authDatabase === '') {
+      options.push(`authSource=${config.authDatabase || 'admin'}`);
     }
     if (config.replicaSet) {
       options.push(`replicaSet=${config.replicaSet}`);
@@ -151,6 +158,23 @@ export class MongoConfigService {
 
   public parseConnectionString(connectionString: string): Partial<MongoConfiguration> {
     try {
+      // Handle mongodb+srv:// connections
+      if (connectionString.startsWith('mongodb+srv://')) {
+        const url = new URL(connectionString);
+        return {
+          connectionString,
+          host: url.hostname,
+          port: undefined, // SRV doesn't use explicit port
+          username: url.username ? decodeURIComponent(url.username) : undefined,
+          password: url.password ? decodeURIComponent(url.password) : undefined,
+          databaseName: url.pathname.slice(1) || undefined,
+          ssl: url.searchParams.get('ssl') === 'true' || true, // SRV connections default to SSL
+          replicaSet: url.searchParams.get('replicaSet') || undefined,
+          authDatabase: url.searchParams.get('authSource') || undefined
+        };
+      }
+      
+      // Handle standard mongodb:// connections
       const url = new URL(connectionString);
       
       return {
