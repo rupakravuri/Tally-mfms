@@ -5,7 +5,7 @@ import {
   AlertCircle, CheckCircle, Database, FileText, Package 
 } from 'lucide-react';
 import { 
-  FieldMapping, 
+  FieldMapping as IFieldMapping, 
   CustomField, 
   FieldMappingConfigService, 
   FieldMappingConfiguration 
@@ -32,7 +32,7 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [activeTab, setActiveTab] = useState<'stock' | 'custom'>('stock');
-  const [newMapping, setNewMapping] = useState<Partial<FieldMapping>>({});
+  const [newMapping, setNewMapping] = useState<Partial<IFieldMapping>>({});
   const [newCustomField, setNewCustomField] = useState<Partial<CustomField>>({});
 
   const configService = FieldMappingConfigService.getInstance();
@@ -92,7 +92,7 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
       return;
     }
 
-    const mapping: FieldMapping = {
+    const mapping: IFieldMapping = {
       id: `${newMapping.tallyField}-to-${newMapping.mongoField}`,
       tallyField: newMapping.tallyField!,
       mongoField: newMapping.mongoField!,

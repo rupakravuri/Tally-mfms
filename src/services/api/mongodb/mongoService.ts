@@ -1,6 +1,5 @@
-// MongoDB Service for Tally Integration
-import { MongoClient, Db, Collection, InsertOneResult, UpdateResult } from 'mongodb';
-import { MongoConfiguration, MongoConfigService } from '../../config/mongoConfig';
+// MongoDB Service for Tally Integration - IPC Version
+// This service now uses Electron IPC to communicate with MongoDB in the main process
 
 export interface MongoDocument {
   _id?: string;
@@ -21,15 +20,28 @@ export interface SyncResult {
   totalProcessed: number;
 }
 
+export interface MongoConfiguration {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  databaseName: string;
+  collectionName: string;
+  authSource: string;
+  connectionOptions: {
+    useUnifiedTopology: boolean;
+    serverSelectionTimeoutMS: number;
+    connectTimeoutMS: number;
+    maxPoolSize: number;
+  };
+}
+
+// MongoDB Service that uses Electron IPC for database operations
 export class MongoService {
   private static instance: MongoService;
-  private client: MongoClient | null = null;
-  private db: Db | null = null;
-  private config: MongoConfiguration | null = null;
-  private configService: MongoConfigService;
-
+  
   private constructor() {
-    this.configService = MongoConfigService.getInstance();
+    // Private constructor for singleton
   }
 
   public static getInstance(): MongoService {
@@ -39,107 +51,46 @@ export class MongoService {
     return MongoService.instance;
   }
 
-  public async connect(config?: MongoConfiguration): Promise<boolean> {
-    try {
-      if (config) {
-        this.config = config;
-      } else {
-        this.config = await this.configService.loadConfiguration();
-      }
+  // Check if running in Electron environment
+  private isElectron(): boolean {
+    return typeof window !== 'undefined' && window.electronAPI && window.electronAPI.mongo;
+  }
 
-      if (!this.config.isActive && !config) {
-        throw new Error('MongoDB configuration is not active');
-      }
-
-      const connectionString = this.configService.buildConnectionString(this.config);
-      
-      this.client = new MongoClient(connectionString, this.config.connectionOptions);
-      await this.client.connect();
-      
-      this.db = this.client.db(this.config.databaseName);
-      
-      // Test the connection
-      await this.db.admin().ping();
-      
-      await this.configService.updateConnectionStatus(true);
-      console.log('MongoDB connected successfully');
-      return true;
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown connection error';
-      console.error('MongoDB connection failed:', errorMessage);
-      await this.configService.updateConnectionStatus(false, errorMessage);
-      throw error;
+  private getElectronAPI() {
+    if (!this.isElectron()) {
+      throw new Error('MongoDB operations are only available in Electron environment');
     }
+    return window.electronAPI.mongo;
+  }
+
+  public async loadConfiguration(): Promise<MongoConfiguration> {
+    const api = this.getElectronAPI();
+    return await api.loadConfig();
+  }
+
+  public async saveConfiguration(config: MongoConfiguration): Promise<void> {
+    const api = this.getElectronAPI();
+    await api.saveConfig(config);
+  }
+
+  public async connect(): Promise<{ success: boolean; error?: string }> {
+    const api = this.getElectronAPI();
+    return await api.connect();
   }
 
   public async disconnect(): Promise<void> {
-    try {
-      if (this.client) {
-        await this.client.close();
-        this.client = null;
-        this.db = null;
-        console.log('MongoDB disconnected');
-      }
-    } catch (error) {
-      console.error('Error disconnecting from MongoDB:', error);
-    }
+    const api = this.getElectronAPI();
+    await api.disconnect();
   }
 
   public async testConnection(config: MongoConfiguration): Promise<{ success: boolean; error?: string }> {
-    let testClient: MongoClient | null = null;
-    
-    try {
-      const connectionString = this.configService.buildConnectionString(config);
-      testClient = new MongoClient(connectionString, {
-        ...config.connectionOptions,
-        serverSelectionTimeoutMS: 5000 // Quick timeout for testing
-      });
-      
-      await testClient.connect();
-      const db = testClient.db(config.databaseName);
-      await db.admin().ping();
-      
-      return { success: true };
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { success: false, error: errorMessage };
-      
-    } finally {
-      if (testClient) {
-        try {
-          await testClient.close();
-        } catch (closeError) {
-          console.error('Error closing test connection:', closeError);
-        }
-      }
-    }
+    const api = this.getElectronAPI();
+    return await api.testConnection(config);
   }
 
-  public async ensureConnection(): Promise<void> {
-    if (!this.client || !this.db) {
-      await this.connect();
-    }
-  }
-
-  public getCollection(collectionName?: string): Collection<MongoDocument> {
-    if (!this.db) {
-      throw new Error('MongoDB not connected');
-    }
-    
-    const collection = collectionName || this.config?.collectionName || 'inventories';
-    return this.db.collection<MongoDocument>(collection);
-  }
-
-  public async insertDocument(document: MongoDocument, collectionName?: string): Promise<InsertOneResult> {
-    await this.ensureConnection();
-    const collection = this.getCollection(collectionName);
-    
-    // Add metadata
-    document.date = document.date || new Date();
-    
-    return await collection.insertOne(document);
+  public async insertDocument(document: MongoDocument, collectionName?: string): Promise<any> {
+    const api = this.getElectronAPI();
+    return await api.insertDocument(document, collectionName);
   }
 
   public async updateDocument(
@@ -147,26 +98,19 @@ export class MongoService {
     update: Record<string, any>,
     collectionName?: string,
     upsert: boolean = true
-  ): Promise<UpdateResult> {
-    await this.ensureConnection();
-    const collection = this.getCollection(collectionName);
-    
-    // Add update timestamp
-    update.date = new Date();
-    
-    return await collection.updateOne(filter, { $set: update }, { upsert });
+  ): Promise<any> {
+    const api = this.getElectronAPI();
+    return await api.updateDocument(filter, update, collectionName, upsert);
   }
 
   public async findDocument(filter: Record<string, any>, collectionName?: string): Promise<MongoDocument | null> {
-    await this.ensureConnection();
-    const collection = this.getCollection(collectionName);
-    return await collection.findOne(filter);
+    const api = this.getElectronAPI();
+    return await api.findDocument(filter, collectionName);
   }
 
   public async findDocuments(filter: Record<string, any>, collectionName?: string): Promise<MongoDocument[]> {
-    await this.ensureConnection();
-    const collection = this.getCollection(collectionName);
-    return await collection.find(filter).toArray();
+    const api = this.getElectronAPI();
+    return await api.findDocuments(filter, collectionName);
   }
 
   public async upsertDocument(
@@ -174,8 +118,6 @@ export class MongoService {
     document: MongoDocument,
     collectionName?: string
   ): Promise<{ inserted: boolean; updated: boolean }> {
-    await this.ensureConnection();
-    
     try {
       const result = await this.updateDocument(filter, document, collectionName, true);
       
@@ -193,74 +135,22 @@ export class MongoService {
     documents: Array<{ filter: Record<string, any>; document: MongoDocument }>,
     collectionName?: string
   ): Promise<SyncResult> {
-    await this.ensureConnection();
-    const collection = this.getCollection(collectionName);
-    
-    const result: SyncResult = {
-      success: true,
-      inserted: 0,
-      updated: 0,
-      errors: [],
-      totalProcessed: 0
-    };
-
-    try {
-      const bulkOps = documents.map(({ filter, document }) => ({
-        updateOne: {
-          filter,
-          update: { $set: { ...document, date: new Date() } },
-          upsert: true
-        }
-      }));
-
-      if (bulkOps.length === 0) {
-        return result;
-      }
-
-      const bulkResult = await collection.bulkWrite(bulkOps);
-      
-      result.inserted = bulkResult.upsertedCount;
-      result.updated = bulkResult.modifiedCount;
-      result.totalProcessed = documents.length;
-      
-    } catch (error) {
-      result.success = false;
-      result.errors.push(error instanceof Error ? error.message : 'Unknown bulk operation error');
-    }
-
-    return result;
+    const api = this.getElectronAPI();
+    return await api.bulkUpsert(documents, collectionName);
   }
 
   public async getCollectionStats(collectionName?: string): Promise<any> {
-    await this.ensureConnection();
-    const collection = this.getCollection(collectionName);
-    
-    try {
-      const stats = await this.db!.command({ collStats: collection.collectionName });
-      const count = await collection.countDocuments();
-      
-      return {
-        count,
-        size: stats.size,
-        storageSize: stats.storageSize,
-        indexes: stats.nindexes,
-        avgObjSize: stats.avgObjSize
-      };
-    } catch (error) {
-      console.error('Error getting collection stats:', error);
-      return null;
-    }
+    const api = this.getElectronAPI();
+    return await api.getCollectionStats(collectionName);
   }
 
-  public isConnected(): boolean {
-    return this.client !== null && this.db !== null;
+  // Legacy method compatibility
+  public async ensureConnection(): Promise<void> {
+    await this.connect();
   }
 
-  public getConnectionStatus(): { connected: boolean; database?: string; collection?: string } {
-    return {
-      connected: this.isConnected(),
-      database: this.config?.databaseName,
-      collection: this.config?.collectionName
-    };
+  public getCollection(collectionName?: string): any {
+    // This method is not needed in IPC version but kept for compatibility
+    throw new Error('getCollection is not available in IPC version. Use specific methods instead.');
   }
 }
