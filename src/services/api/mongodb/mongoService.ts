@@ -144,6 +144,50 @@ export class MongoService {
     return await api.getCollectionStats(collectionName);
   }
 
+  // Configuration management for MongoDB configs
+  public async loadMongoConfig(): Promise<any> {
+    if (!this.isElectron()) {
+      throw new Error('Configuration operations are only available in Electron environment');
+    }
+    return await window.electronAPI.mongo.loadMongoConfig();
+  }
+
+  public async saveMongoConfig(config: any): Promise<any> {
+    if (!this.isElectron()) {
+      throw new Error('Configuration operations are only available in Electron environment');
+    }
+    return await window.electronAPI.mongo.saveMongoConfig(config);
+  }
+
+  public async loadFieldMappingConfig(companyName?: string): Promise<any> {
+    if (!this.isElectron()) {
+      throw new Error('Configuration operations are only available in Electron environment');
+    }
+    return await window.electronAPI.mongo.loadFieldMappingConfig(companyName);
+  }
+
+  public async saveFieldMappingConfig(config: any): Promise<any> {
+    if (!this.isElectron()) {
+      throw new Error('Configuration operations are only available in Electron environment');
+    }
+    return await window.electronAPI.mongo.saveFieldMappingConfig(config);
+  }
+
+  // Legacy method compatibility
+  public getConnectionStatus(): { connected: boolean; error?: string } {
+    try {
+      if (this.isElectron()) {
+        // For Electron, we'll return a basic status check
+        // The actual connection status should be managed by the main process
+        return { connected: true }; // We assume IPC connection is available
+      } else {
+        return { connected: false, error: 'Not running in Electron environment' };
+      }
+    } catch (error) {
+      return { connected: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
   // Legacy method compatibility
   public async ensureConnection(): Promise<void> {
     await this.connect();
