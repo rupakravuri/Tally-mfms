@@ -1,7 +1,7 @@
-// MongoDB Configuration Component
+// MongoDB Configuration Component - Updated to use Database Storage
 import React, { useState, useEffect } from 'react';
 import { Database, Check, X, Settings, AlertCircle, Loader2, TestTube } from 'lucide-react';
-import { MongoConfiguration, MongoConfigService } from '../services/config/mongoConfig';
+import { MongoConfiguration, MongoConfigDbService } from '../services/config/mongoConfigDb';
 import { MongoService } from '../services/api/mongodb/mongoService';
 
 interface MongoConfigProps {
@@ -15,6 +15,9 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
     databaseName: 'tally_sync',
     collectionName: 'inventories',
     isActive: false,
+    version: '1.0.0',
+    createdAt: new Date(),
+    updatedAt: new Date(),
     connectionOptions: {}
   });
 
@@ -24,7 +27,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
   const [useAdvanced, setUseAdvanced] = useState(false);
 
-  const configService = MongoConfigService.getInstance();
+  const configService = MongoConfigDbService.getInstance();
   const mongoService = MongoService.getInstance();
 
   useEffect(() => {
@@ -109,7 +112,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
       
     } catch (error) {
       console.error('Error saving configuration:', error);
-      alert('Failed to save configuration');
+      alert('Failed to save configuration to database');
     } finally {
       setIsSaving(false);
     }
@@ -119,7 +122,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-6 w-6 animate-spin" />
-        <span className="ml-2">Loading configuration...</span>
+        <span className="ml-2">Loading configuration from database...</span>
       </div>
     );
   }
@@ -133,7 +136,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">MongoDB Configuration</h2>
-            <p className="text-gray-600">Configure connection to your MongoDB database</p>
+            <p className="text-gray-600">Configure connection to your MongoDB database (stored in database)</p>
           </div>
         </div>
         {onClose && (
@@ -176,6 +179,8 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
                 type="text"
                 value={config.connectionString}
                 onChange={(e) => handleInputChange('connectionString', e.target.value)}
+                onFocus={(e) => e.target.select()}
+                onBlur={() => setTestResult(null)}
                 placeholder="mongodb://username:password@host:port/database"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
               />
@@ -195,6 +200,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
                 type="text"
                 value={config.host || 'localhost'}
                 onChange={(e) => handleInputChange('host', e.target.value)}
+                onFocus={(e) => e.target.select()}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -207,6 +213,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
                 type="number"
                 value={config.port || 27017}
                 onChange={(e) => handleInputChange('port', parseInt(e.target.value))}
+                onFocus={(e) => e.target.select()}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -219,6 +226,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
                 type="text"
                 value={config.username || ''}
                 onChange={(e) => handleInputChange('username', e.target.value)}
+                onFocus={(e) => e.target.select()}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -231,6 +239,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
                 type="password"
                 value={config.password || ''}
                 onChange={(e) => handleInputChange('password', e.target.value)}
+                onFocus={(e) => e.target.select()}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -247,6 +256,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
               type="text"
               value={config.databaseName}
               onChange={(e) => handleInputChange('databaseName', e.target.value)}
+              onFocus={(e) => e.target.select()}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -259,6 +269,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
               type="text"
               value={config.collectionName}
               onChange={(e) => handleInputChange('collectionName', e.target.value)}
+              onFocus={(e) => e.target.select()}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -326,7 +337,7 @@ export const MongoConfig: React.FC<MongoConfigProps> = ({ onConfigured, onClose 
         {/* Actions */}
         <div className="flex justify-between items-center pt-6 border-t border-gray-200">
           <div className="text-sm text-gray-600">
-            Configuration will be saved locally and encrypted
+            Configuration will be saved to MongoDB database and encrypted
           </div>
           
           <div className="flex space-x-3">

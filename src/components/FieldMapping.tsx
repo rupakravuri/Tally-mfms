@@ -1,5 +1,5 @@
-// Field Mapping Configuration Component
-import React, { useState, useEffect } from 'react';
+// Field Mapping Configuration Component - Database Storage + Fixed UI Issues
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ArrowRight, Plus, Trash2, Settings, Save, RefreshCw, 
   AlertCircle, CheckCircle, Database, FileText, Package 
@@ -7,9 +7,9 @@ import {
 import { 
   FieldMapping as IFieldMapping, 
   CustomField, 
-  FieldMappingConfigService, 
+  FieldMappingConfigDbService, 
   FieldMappingConfiguration 
-} from '../services/config/fieldMappingConfig';
+} from '../services/config/fieldMappingConfigDb';
 import { StockItemApiService } from '../services/api/inventory/stockItemApiService';
 
 interface FieldMappingProps {
@@ -24,7 +24,9 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
     salesVoucherMappings: [],
     customFields: [],
     lastUpdated: '',
-    version: '1.0.0'
+    version: '1.0.0',
+    createdAt: new Date(),
+    updatedAt: new Date()
   });
 
   const [availableTallyFields, setAvailableTallyFields] = useState<string[]>([]);
@@ -35,18 +37,23 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
   const [newMapping, setNewMapping] = useState<Partial<IFieldMapping>>({});
   const [newCustomField, setNewCustomField] = useState<Partial<CustomField>>({});
 
-  const configService = FieldMappingConfigService.getInstance();
+  const configService = FieldMappingConfigDbService.getInstance();
   const stockItemService = new StockItemApiService();
 
   useEffect(() => {
     loadConfiguration();
-    loadAvailableFields();
+  }, [companyName]);
+
+  useEffect(() => {
+    if (companyName) {
+      loadAvailableFields();
+    }
   }, [companyName]);
 
   const loadConfiguration = async () => {
     try {
       setIsLoading(true);
-      const savedConfig = await configService.loadConfiguration();
+      const savedConfig = await configService.loadConfiguration(companyName);
       setConfig(savedConfig);
     } catch (error) {
       console.error('Error loading field mapping configuration:', error);
@@ -55,10 +62,19 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
     }
   };
 
-  const loadAvailableFields = async () => {
+  const loadAvailableFields = useCallback(async () => {
+    if (!companyName) {
+      console.warn('No company name provided for loading fields');
+      return;
+    }
+
     try {
       setIsLoadingFields(true);
+      console.log('Loading available fields for company:', companyName);
+      
       const fields = await stockItemService.getAvailableFields(companyName);
+      console.log('Loaded fields:', fields);
+      
       setAvailableTallyFields(fields);
     } catch (error) {
       console.error('Error loading available Tally fields:', error);
@@ -71,7 +87,7 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
     } finally {
       setIsLoadingFields(false);
     }
-  };
+  }, [companyName, stockItemService]);
 
   const saveConfiguration = async () => {
     try {
@@ -80,7 +96,7 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
       onSave?.(config);
     } catch (error) {
       console.error('Error saving configuration:', error);
-      alert('Failed to save configuration');
+      alert('Failed to save configuration to database');
     } finally {
       setIsSaving(false);
     }
@@ -154,11 +170,21 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
     { value: 'object', label: 'Object' }
   ];
 
+  // Fix input focus issues by ensuring proper event handling
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+  };
+
+  const handleInputClick = (e: React.MouseEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    e.currentTarget.focus();
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <RefreshCw className="h-6 w-6 animate-spin" />
-        <span className="ml-2">Loading field mappings...</span>
+        <span className="ml-2">Loading field mappings from database...</span>
       </div>
     );
   }
@@ -173,7 +199,7 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Field Mapping Configuration</h2>
-            <p className="text-gray-600">Map Tally fields to MongoDB documents for <strong>{companyName}</strong></p>
+            <p className="text-gray-600">Map Tally fields to MongoDB documents for <strong>{companyName}</strong> (stored in database)</p>
           </div>
         </div>
         {onClose && (
@@ -242,6 +268,8 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
                   type="text"
                   value={newMapping.mongoField || ''}
                   onChange={(e) => setNewMapping(prev => ({ ...prev, mongoField: e.target.value }))}
+                  onFocus={handleInputFocus}
+                  onClick={handleInputClick}
                   placeholder="e.g., productId, name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
@@ -347,6 +375,8 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
                   type="text"
                   value={newCustomField.mongoField || ''}
                   onChange={(e) => setNewCustomField(prev => ({ ...prev, mongoField: e.target.value }))}
+                  onFocus={handleInputFocus}
+                  onClick={handleInputClick}
                   placeholder="e.g., fms_status, companies"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
                 />
@@ -375,6 +405,8 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
                   type="text"
                   value={newCustomField.defaultValue || ''}
                   onChange={(e) => setNewCustomField(prev => ({ ...prev, defaultValue: e.target.value }))}
+                  onFocus={handleInputFocus}
+                  onClick={handleInputClick}
                   placeholder="Default value"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
                 />
@@ -450,7 +482,7 @@ export const FieldMapping: React.FC<FieldMappingProps> = ({ companyName, onSave,
         <div className="flex space-x-3">
           <button
             onClick={loadAvailableFields}
-            disabled={isLoadingFields}
+            disabled={isLoadingFields || !companyName}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center space-x-2"
           >
             <RefreshCw className={`h-4 w-4 ${isLoadingFields ? 'animate-spin' : ''}`} />
