@@ -27,42 +27,25 @@ async function loadMongoConfig() {
   try {
     const configPath = await getMongoConfigPath();
     const configData = await fs.readFile(configPath, 'utf8');
-    const config = JSON.parse(configData);
-    
-    // Ensure connection options are present and updated
-    if (!config.connectionOptions) {
-      config.connectionOptions = getDefaultConnectionOptions();
-    }
-    
-    return config;
+    return JSON.parse(configData);
   } catch (error) {
-    console.log('Loading default MongoDB configuration:', error.message);
     // Return default config
     return {
       host: 'localhost',
       port: 27017,
       username: '',
       password: '',
-      databaseName: 'tally_sync',
+      databaseName: 'tally_inventory',
       collectionName: 'inventories',
       authSource: 'admin',
-      connectionString: 'mongodb://localhost:27017',
-      connectionOptions: getDefaultConnectionOptions()
+      connectionOptions: {
+        useUnifiedTopology: true,
+        serverSelectionTimeoutMS: 30000,
+        connectTimeoutMS: 30000,
+        maxPoolSize: 10
+      }
     };
   }
-}
-
-function getDefaultConnectionOptions() {
-  return {
-    maxPoolSize: 10,
-    serverSelectionTimeoutMS: 30000, // 30 seconds for external connections
-    socketTimeoutMS: 45000,
-    connectTimeoutMS: 30000,
-    heartbeatFrequencyMS: 10000,
-    maxIdleTimeMS: 30000,
-    retryWrites: true,
-    retryReads: true,
-  };
 }
 
 async function saveMongoConfig(config) {
@@ -70,64 +53,25 @@ async function saveMongoConfig(config) {
     const configPath = await getMongoConfigPath();
     const configDir = path.dirname(configPath);
     
-    // Ensure directory exists with proper error handling
-    try {
-      await fs.mkdir(configDir, { recursive: true });
-    } catch (dirError) {
-      if (dirError.code !== 'EEXIST') {
-        console.error('Error creating config directory:', dirError);
-        throw new Error(`Failed to create config directory: ${configDir}`);
-      }
-    }
+    // Ensure directory exists
+    await fs.mkdir(configDir, { recursive: true });
     
-    // Add default connection options if not present
-    const configToSave = {
-      ...config,
-      connectionOptions: {
-        ...getDefaultConnectionOptions(),
-        ...config.connectionOptions
-      }
-    };
-    
-    await fs.writeFile(configPath, JSON.stringify(configToSave, null, 2));
-    console.log('MongoDB configuration saved successfully to:', configPath);
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2));
     return true;
   } catch (error) {
     console.error('Error saving MongoDB config:', error);
-    throw new Error(`Failed to save MongoDB configuration: ${error.message}`);
+    throw error;
   }
 }
 
 function buildConnectionString(config) {
-  // If config already has a full connection string, use it
-  if (config.connectionString && (config.connectionString.startsWith('mongodb://') || config.connectionString.startsWith('mongodb+srv://'))) {
-    return config.connectionString;
-  }
-  
   const { host, port, username, password, databaseName, authSource } = config;
   
-  let connectionString = 'mongodb://';
-  
   if (username && password) {
-    connectionString += `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`;
+    return `mongodb://${username}:${password}@${host}:${port}/${databaseName}?authSource=${authSource || 'admin'}`;
+  } else {
+    return `mongodb://${host}:${port}/${databaseName}`;
   }
-  
-  connectionString += `${host || 'localhost'}:${port || 27017}`;
-  
-  if (databaseName) {
-    connectionString += `/${databaseName}`;
-  }
-  
-  const options = [];
-  if (username && password && authSource) {
-    options.push(`authSource=${authSource}`);
-  }
-  
-  if (options.length > 0) {
-    connectionString += `?${options.join('&')}`;
-  }
-  
-  return connectionString;
 }
 
 async function connectToMongo() {
@@ -169,42 +113,18 @@ async function testMongoConnection(config) {
   
   try {
     const connectionString = buildConnectionString(config);
-    console.log('Testing MongoDB connection to:', connectionString.replace(/\/\/.*@/, '//***:***@')); // Hide credentials in logs
-    
-    // Use more lenient timeout for external connections during testing
-    const testOptions = {
-      ...getDefaultConnectionOptions(),
+    testClient = new MongoClient(connectionString, {
       ...config.connectionOptions,
-      serverSelectionTimeoutMS: 15000, // 15 seconds for connection test
-      connectTimeoutMS: 15000
-    };
-    
-    testClient = new MongoClient(connectionString, testOptions);
+      serverSelectionTimeoutMS: 5000
+    });
     
     await testClient.connect();
-    const db = testClient.db(config.databaseName || 'tally_sync');
-    
-    // Test the connection with ping
+    const db = testClient.db(config.databaseName);
     await db.admin().ping();
     
-    console.log('MongoDB connection test successful');
     return { success: true };
   } catch (error) {
-    console.error('MongoDB connection test failed:', error.message);
-    
-    // Provide more specific error messages
-    let friendlyError = error.message;
-    if (error.message.includes('ENOTFOUND')) {
-      friendlyError = 'Cannot resolve hostname. Please check the server address.';
-    } else if (error.message.includes('ECONNREFUSED')) {
-      friendlyError = 'Connection refused. Please check if MongoDB is running and accessible.';
-    } else if (error.message.includes('Authentication failed')) {
-      friendlyError = 'Authentication failed. Please check your username and password.';
-    } else if (error.message.includes('Server selection timed out')) {
-      friendlyError = 'Connection timeout. The server may be unreachable or overloaded.';
-    }
-    
-    return { success: false, error: friendlyError };
+    return { success: false, error: error.message };
   } finally {
     if (testClient) {
       try {

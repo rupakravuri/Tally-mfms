@@ -16,11 +16,6 @@ export class StorageService {
 
   private checkElectronEnvironment(): boolean {
     try {
-      // Modern Electron detection - check for electronAPI exposed by preload script
-      if (typeof window !== 'undefined' && window.electronAPI) {
-        return true;
-      }
-      // Fallback for older Electron versions
       return !!(window && window.require);
     } catch {
       return false;
@@ -53,24 +48,12 @@ export class StorageService {
         
         // Ensure directory exists
         const dir = path.dirname(filePath);
-        try {
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-          }
-        } catch (dirError) {
-          console.error('Error creating directory:', dirError);
-          throw new Error(`Failed to create directory: ${dir}`);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
         }
         
-        // Write file with proper error handling
-        try {
-          fs.writeFileSync(filePath, content, 'utf-8');
-          console.log('Successfully wrote file:', filePath);
-          return true;
-        } catch (writeError) {
-          console.error('Error writing file:', writeError);
-          throw new Error(`Failed to write file: ${filePath}`);
-        }
+        fs.writeFileSync(filePath, content, 'utf-8');
+        return true;
       } else {
         // Browser fallback - use localStorage
         const key = this.pathToKey(filePath);
@@ -78,7 +61,7 @@ export class StorageService {
         return true;
       }
     } catch (error) {
-      console.error('Error in writeFile:', error);
+      console.error('Error writing file:', error);
       return false;
     }
   }
@@ -122,32 +105,11 @@ export class StorageService {
   public getConfigPath(): string {
     if (this.isElectron) {
       try {
-        // Try modern Electron API first (via IPC)
-        if (window.electronAPI) {
-          // Use a standard path that works across different Electron versions
-          const os = window.require?.('os');
-          const path = window.require?.('path');
-          if (os && path) {
-            return path.join(os.homedir(), '.tally-field-extractor', 'config');
-          }
-        }
-        
-        // Fallback for older versions
         const electronApp = window.require('@electron/remote').app;
         const path = window.require('path');
         return path.join(electronApp.getPath('userData'), 'config');
       } catch (error) {
-        console.warn('Could not get electron app path, using fallback:', error);
-        // Use a predictable fallback path
-        try {
-          const os = window.require?.('os');
-          const path = window.require?.('path');
-          if (os && path) {
-            return path.join(os.homedir(), '.tally-field-extractor', 'config');
-          }
-        } catch (fallbackError) {
-          console.warn('Fallback config path also failed:', fallbackError);
-        }
+        console.warn('Could not get electron app path, using fallback');
       }
     }
     return 'tally-config'; // Browser fallback prefix
