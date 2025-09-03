@@ -371,6 +371,99 @@ ipcMain.handle('mongo-get-collection-stats', async (event, collectionName) => {
   }
 });
 
+// Configuration Collections Support
+ipcMain.handle('mongo-load-mongo-config', async () => {
+  try {
+    if (!mongoDB) {
+      const connectResult = await connectToMongo();
+      if (!connectResult.success) {
+        throw new Error('Failed to connect to MongoDB');
+      }
+    }
+    
+    const collection = mongoDB.collection('mongo_configurations');
+    const configs = await collection.find({}).sort({ updatedAt: -1 }).limit(1).toArray();
+    
+    return configs.length > 0 ? configs[0] : null;
+  } catch (error) {
+    console.error('Error loading mongo config from database:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('mongo-save-mongo-config', async (event, config) => {
+  try {
+    if (!mongoDB) {
+      const connectResult = await connectToMongo();
+      if (!connectResult.success) {
+        throw new Error('Failed to connect to MongoDB');
+      }
+    }
+    
+    const collection = mongoDB.collection('mongo_configurations');
+    const filter = config._id ? { _id: config._id } : { databaseName: config.databaseName };
+    
+    config.updatedAt = new Date();
+    if (!config._id) {
+      config.createdAt = new Date();
+    }
+    
+    const result = await collection.updateOne(filter, { $set: config }, { upsert: true });
+    return { success: true, result };
+  } catch (error) {
+    throw new Error(`Failed to save mongo config to database: ${error.message}`);
+  }
+});
+
+ipcMain.handle('mongo-load-field-mapping-config', async (event, companyName) => {
+  try {
+    if (!mongoDB) {
+      const connectResult = await connectToMongo();
+      if (!connectResult.success) {
+        throw new Error('Failed to connect to MongoDB');
+      }
+    }
+    
+    const collection = mongoDB.collection('field_mapping_configurations');
+    const filter = companyName ? { companyName } : {};
+    const configs = await collection.find(filter).sort({ updatedAt: -1 }).limit(1).toArray();
+    
+    return configs.length > 0 ? configs[0] : null;
+  } catch (error) {
+    console.error('Error loading field mapping config from database:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('mongo-save-field-mapping-config', async (event, config) => {
+  try {
+    if (!mongoDB) {
+      const connectResult = await connectToMongo();
+      if (!connectResult.success) {
+        throw new Error('Failed to connect to MongoDB');
+      }
+    }
+    
+    const collection = mongoDB.collection('field_mapping_configurations');
+    const filter = config._id 
+      ? { _id: config._id } 
+      : config.companyName 
+        ? { companyName: config.companyName }
+        : { version: config.version };
+    
+    config.lastUpdated = new Date().toISOString();
+    config.updatedAt = new Date();
+    if (!config._id) {
+      config.createdAt = new Date();
+    }
+    
+    const result = await collection.updateOne(filter, { $set: config }, { upsert: true });
+    return { success: true, result };
+  } catch (error) {
+    throw new Error(`Failed to save field mapping config to database: ${error.message}`);
+  }
+});
+
 // General IPC handlers
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();

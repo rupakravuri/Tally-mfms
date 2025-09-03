@@ -18,7 +18,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     findDocument: (filter, collectionName) => ipcRenderer.invoke('mongo-find-document', filter, collectionName),
     findDocuments: (filter, collectionName) => ipcRenderer.invoke('mongo-find-documents', filter, collectionName),
     bulkUpsert: (documents, collectionName) => ipcRenderer.invoke('mongo-bulk-upsert', documents, collectionName),
-    getCollectionStats: (collectionName) => ipcRenderer.invoke('mongo-get-collection-stats', collectionName)
+    getCollectionStats: (collectionName) => ipcRenderer.invoke('mongo-get-collection-stats', collectionName),
+    // Configuration management
+    loadMongoConfig: () => ipcRenderer.invoke('mongo-load-mongo-config'),
+    saveMongoConfig: (config) => ipcRenderer.invoke('mongo-save-mongo-config', config),
+    loadFieldMappingConfig: (companyName) => ipcRenderer.invoke('mongo-load-field-mapping-config', companyName),
+    saveFieldMappingConfig: (config) => ipcRenderer.invoke('mongo-save-field-mapping-config', config)
   }
 });
 
